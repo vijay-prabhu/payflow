@@ -92,6 +92,15 @@
         "logs:*"
       ],
       "Resource": "arn:aws:logs:ca-central-1:724087693703:log-group:/aws/lambda/payflow-*"
+    },
+    {
+      "Sid": "CloudFrontInvalidation",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateInvalidation",
+        "cloudfront:GetInvalidation"
+      ],
+      "Resource": "arn:aws:cloudfront::724087693703:distribution/E3GUFACW1OHHMM"
     }
   ]
 }

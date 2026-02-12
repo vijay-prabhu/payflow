@@ -1,14 +1,10 @@
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { success } from '../utils/response';
 
-export const handler = async (): Promise<APIGatewayProxyResult> => {
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      status: 'healthy',
-      service: 'payflow-api',
-      region: process.env.AWS_REGION,
-      timestamp: new Date().toISOString(),
-    }),
-  };
+export const handler = async () => {
+  return success({
+    status: 'healthy',
+    service: 'payflow-api',
+    region: process.env.AWS_REGION,
+    timestamp: new Date().toISOString(),
+  });
 };

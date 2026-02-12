@@ -40,7 +40,7 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Idempotency-Key,Authorization'"
-        AllowOrigin: "'*'"
+        AllowOrigin: "'https://d1fxk9nv78za9e.cloudfront.net'"
       MethodSettings:
         - HttpMethod: '*'
           ResourcePath: '/*'
