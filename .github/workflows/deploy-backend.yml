@@ -53,6 +53,9 @@ jobs:
           role-session-name: payflow-deploy
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Add esbuild to PATH
+        run: echo "$PWD/node_modules/.bin" >> $GITHUB_PATH
+
       - name: SAM Build
         run: sam build
 
