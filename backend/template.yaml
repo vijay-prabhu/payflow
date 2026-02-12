@@ -1,0 +1,263 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  PayFlow - Serverless Payment Gateway API
+  Demonstrates banking-grade serverless patterns on AWS Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        PAYMENTS_TABLE: !Ref PaymentsTable
+        IDEMPOTENCY_TABLE: !Ref IdempotencyTable
+        WEBHOOK_QUEUE_URL: !Ref WebhookQueue
+        LOG_LEVEL: INFO
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+    Tracing: Active
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+
+Resources:
+
+  # ─── API Gateway ───
+  PayFlowApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      TracingEnabled: true
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Idempotency-Key,Authorization'"
+        AllowOrigin: "'*'"
+      MethodSettings:
+        - HttpMethod: '*'
+          ResourcePath: '/*'
+          ThrottlingBurstLimit: 200
+          ThrottlingRateLimit: 100
+
+  # ─── Lambda Functions ───
+  CreatePaymentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/createPayment.handler
+      Description: Create a new payment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PaymentsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IdempotencyTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt WebhookQueue.QueueName
+      Events:
+        CreatePayment:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PayFlowApi
+            Path: /v1/payments
+            Method: post
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/createPayment.ts
+
+  GetPaymentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/getPayment.handler
+      Description: Get payment by ID
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref PaymentsTable
+      Events:
+        GetPayment:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PayFlowApi
+            Path: /v1/payments/{id}
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/getPayment.ts
+
+  ListPaymentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/listPayments.handler
+      Description: List payments with optional filters
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref PaymentsTable
+      Events:
+        ListPayments:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PayFlowApi
+            Path: /v1/payments
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/listPayments.ts
+
+  HealthCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/healthCheck.handler
+      Description: Health check endpoint
+      MemorySize: 128
+      Timeout: 5
+      Events:
+        HealthCheck:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PayFlowApi
+            Path: /v1/health
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/healthCheck.ts
+
+  WebhookProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/webhookProcessor.handler
+      Description: Process webhook events from SQS
+      Timeout: 60
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PaymentsTable
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt WebhookQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/webhookProcessor.ts
+
+  # ─── DynamoDB Tables ───
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub payflow-payments-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: status-createdAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: PayFlow
+        - Key: Environment
+          Value: !Ref Stage
+
+  IdempotencyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub payflow-idempotency-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: idempotencyKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: idempotencyKey
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: PayFlow
+
+  # ─── SQS Queue ───
+  WebhookQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub payflow-webhooks-${Stage}
+      VisibilityTimeout: 120
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt WebhookDLQ.Arn
+        maxReceiveCount: 3
+
+  WebhookDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub payflow-webhooks-dlq-${Stage}
+      MessageRetentionPeriod: 1209600
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${PayFlowApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+  PaymentsTableName:
+    Description: DynamoDB Payments table name
+    Value: !Ref PaymentsTable
+  IdempotencyTableName:
+    Description: DynamoDB Idempotency table name
+    Value: !Ref IdempotencyTable
+  WebhookQueueUrl:
+    Description: SQS Webhook Queue URL
+    Value: !Ref WebhookQueue
