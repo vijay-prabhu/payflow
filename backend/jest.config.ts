@@ -16,6 +16,11 @@ const config: Config = {
       statements: 80,
     },
   },
+  moduleNameMapper: {
+    '^@middy/core$': '<rootDir>/tests/__mocks__/middy.ts',
+    '^@middy/http-json-body-parser$': '<rootDir>/tests/__mocks__/middyJsonParser.ts',
+    '^@middy/http-error-handler$': '<rootDir>/tests/__mocks__/middyErrorHandler.ts',
+  },
 };
 
 export default config;
