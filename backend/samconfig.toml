@@ -3,7 +3,7 @@ version = 0.1
 [default.deploy.parameters]
 stack_name = "payflow-dev"
 region = "ca-central-1"
-resolve_s3 = true
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-fg396ws0j9yv"
 capabilities = "CAPABILITY_IAM"
 parameter_overrides = "Stage=dev"
 confirm_changeset = false

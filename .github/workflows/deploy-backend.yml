@@ -68,7 +68,8 @@ jobs:
             --region ${{ vars.AWS_REGION }} \
             --parameter-overrides Stage=dev \
             --capabilities CAPABILITY_IAM \
-            --s3-bucket aws-sam-cli-managed-default-samclisourcebucket-fg396ws0j9yv
+            --s3-bucket aws-sam-cli-managed-default-samclisourcebucket-fg396ws0j9yv \
+            --no-resolve-s3
 
       - name: Smoke Test
         run: |
