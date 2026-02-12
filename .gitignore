@@ -21,8 +21,7 @@ dist/
 .DS_Store
 Thumbs.db
 
-# AWS
-samconfig.toml
+# AWS (samconfig.toml is committed — it contains no secrets)
 
 # Coverage
 coverage/
