@@ -7,7 +7,10 @@
       "Action": [
         "cloudformation:*"
       ],
-      "Resource": "arn:aws:cloudformation:ca-central-1:724087693703:stack/payflow-*/*"
+      "Resource": [
+        "arn:aws:cloudformation:ca-central-1:724087693703:stack/payflow-*/*",
+        "arn:aws:cloudformation:ca-central-1:724087693703:stack/aws-sam-cli-managed-default/*"
+      ]
     },
     {
       "Sid": "LambdaManagement",
